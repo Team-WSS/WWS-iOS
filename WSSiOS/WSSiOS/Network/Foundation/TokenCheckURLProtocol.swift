@@ -49,10 +49,12 @@ class TokenCheckURLProtocol: URLProtocol {
     override func startLoading() {
         // 원래 요청으로 데이터 테스크 시작
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            // 원래 요청의 응답 상태 코드가 401인지 확인
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {  // 원래 요청의 응답 상태 코드가 401인 경우 토큰 재발급 시도
                 self.handleUnauthorizedResponse()
-            } else { // 401이 아닌 경우 일반적인 응답 처리
+            } else if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 404 {  // 요청의 응답 상태 코드가 404인 경우 탈퇴한 것으로, 무조건 로그인 창으로 이동
+                self.deleteTokenAndMoveToLoginViewController(error: NetworkServiceError.authenticationError)
+                print("404 에러로 로그인 화면으로 돌아갑니다.")
+            } else { // 401, 404가 아닌 경우 일반적인 응답 처리
                 self.handleTaskResult(data: data, response: response, error: error)
             }
         }
@@ -67,7 +69,7 @@ class TokenCheckURLProtocol: URLProtocol {
                 owner.retryRequestWithNewToken()
             }, onError: { owner, error in
                 // 실패 시 토큰을 삭제하고 로그인 VC로 이동
-                owner.handleTokenReissueFailure(error: error)
+                owner.deleteTokenAndMoveToLoginViewController(error: error)
             })
             .disposed(by: self.disposeBag)
     }
@@ -103,10 +105,10 @@ class TokenCheckURLProtocol: URLProtocol {
         retryTask.resume()
     }
     
-    private func handleTokenReissueFailure(error: Error) {
+    private func deleteTokenAndMoveToLoginViewController(error: Error) {
         // 실패 시 토큰을 삭제하고 로그인 VC로 이동
         DispatchQueue.main.async {
-            self.deleteTokens()
+            self.deleteUserInfo()
             self.moveToLoginViewController()
         }
         self.client?.urlProtocol(self, didFailWithError: error)
@@ -126,11 +128,12 @@ extension TokenCheckURLProtocol {
                                        forKey: StringLiterals.UserDefault.refreshToken)
     }
     
-    private func deleteTokens() {
-        UserDefaults.standard.setValue(nil,
-                                       forKey: StringLiterals.UserDefault.accessToken)
-        UserDefaults.standard.setValue(nil,
-                                       forKey: StringLiterals.UserDefault.refreshToken)
+    private func deleteUserInfo() {
+        UserDefaults.standard.removeObject(forKey: StringLiterals.UserDefault.userId)
+        UserDefaults.standard.removeObject(forKey: StringLiterals.UserDefault.userNickname)
+        UserDefaults.standard.removeObject(forKey: StringLiterals.UserDefault.userGender)
+        UserDefaults.standard.removeObject(forKey: StringLiterals.UserDefault.accessToken)
+        UserDefaults.standard.removeObject(forKey: StringLiterals.UserDefault.refreshToken)
     }
     
     private func moveToLoginViewController() {
