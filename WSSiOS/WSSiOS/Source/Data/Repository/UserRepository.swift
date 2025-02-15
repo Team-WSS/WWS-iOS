@@ -33,6 +33,10 @@ protocol UserRepository {
                           size: Int,
                           sortType: String) -> Observable<UserNovelList>
     func getAppMinimumVersion() -> Observable<AppMinimumVersion>
+    
+    // 약관동의
+    func getTermSetting() -> Single<TermSettingEntity>
+    func patchTermSetting(serviceAgreed: Bool, privacyAgreed: Bool, marketingAgreed: Bool) -> Single<Void>
 }
 
 struct DefaultUserRepository: UserRepository {
@@ -144,5 +148,18 @@ struct DefaultUserRepository: UserRepository {
     func getAppMinimumVersion() -> Observable<AppMinimumVersion> {
         return userService.getAppMinimumVersion()
             .asObservable()
+    }
+    
+    // 약관 동의
+    
+    func getTermSetting() -> Single<TermSettingEntity> {
+        return userService.getTermSetting().map { $0.toEntity() }
+    }
+    
+    func patchTermSetting(serviceAgreed: Bool, privacyAgreed: Bool, marketingAgreed: Bool) -> Single<Void> {
+        let requestBody = TermSettingRequest(serviceAgreed: serviceAgreed,
+                                             privacyAgreed: privacyAgreed,
+                                             marketingAgreed: marketingAgreed)
+        return userService.patchTermSetting(requestBody)
     }
 }
